@@ -75,7 +75,7 @@ def codex(root):
                 continue
             stamp = timestamp(t)
             body = cleaned_input('codex', text(json.loads(raw).get('content')))
-            row = event('codex','prompt',sid,uid,stamp,text=body) if body else None
+            row = event('codex','prompt',sid,f'{sid}:{uid}',stamp,text=body) if body else None
             boundaries[sid,turn,uid] = row['id'] if row else None
             if stamp:
                 prompts[sid,turn].append((stamp, row['id'] if row else None))
@@ -123,7 +123,7 @@ def codex_rollout(lines, roots, prompts, boundaries):
                 active[turn] = None
                 start = starts.pop(turn,None)
                 if start:
-                    yield event('codex','turn',sid,turn,start,end=stamp.isoformat() if stamp and not p.get('error') else None)
+                    yield event('codex','turn',sid,f'{sid}:{turn}',start,end=stamp.isoformat() if stamp and not p.get('error') else None)
             elif kind == 'token_usage_record' and p.get('thread_id') == sid and stamp and p.get('response_id'):
                 # Use the projected timestamp only when the rollout lacks a native boundary.
                 available = prompts.get((sid, turn), [])
@@ -135,7 +135,7 @@ def codex_rollout(lines, roots, prompts, boundaries):
                             output_tokens=usage.get('output_tokens'))
 
     for turn,stamp in starts.items():
-        yield event('codex','turn',sid,turn,stamp)
+        yield event('codex','turn',sid,f'{sid}:{turn}',stamp)
 
 
 def claude(root):
