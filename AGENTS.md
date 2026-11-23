@@ -34,22 +34,27 @@ Skip sources that do not exist. A fresh snapshot may contain old events; that is
 
 ## 2. Add custom adapter output
 
-Custom adapters must be read-only and emit normalized JSON Lines per `FORMAT.md`. Write their output into the same snapshot directory, for example `.fieldnotes/raw/$SNAP-custom.jsonl`, and include it with an additional `--input` in every build. Do not edit or rewrite a raw snapshot after collection.
+Custom adapters must be read-only and emit normalized JSON Lines per `FORMAT.md`. Write their output into the same snapshot directory, for example `.fieldnotes/raw/$SNAP-custom.jsonl`; the input list in step 3 includes it automatically. Do not edit or rewrite a raw snapshot after collection.
 
 Keep IDs stable and deterministic: namespace prompt IDs by app, and derive IDs from the source app, native conversation ID, and native message ID (the copied-history signature). Re-importing a copied conversation then produces the same IDs instead of a duplicate history. Do not invent random IDs or hash prompt text to force deduplication.
 
 ## 3. Build from every snapshot
 
-Pass every snapshot with a separate `--input`. Always use the same `--private` directory.
+Pass every saved snapshot with a separate `--input`, including the initial export and any custom adapter output. Always use the same `--private` directory. Generate the list from the snapshot directory once, so later refreshes cannot silently drop older history:
+
+```sh
+INPUTS=()
+for file in .fieldnotes/raw/*.jsonl; do
+  [ -f "$file" ] || continue
+  INPUTS+=(--input "$file")
+done
+```
 
 Review build without Jev (redacts and exports excerpts for inspection):
 
 ```sh
 .venv/bin/python pipeline/fieldnotes.py build \
-  --input ".fieldnotes/raw/$SNAP-codex.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-claude.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-cursor.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-custom.jsonl" \
+  "${INPUTS[@]}" \
   --private .fieldnotes \
   --timezone America/New_York \
   --pii-model fastino/gliner2-privacy-filter-PII-multi \
@@ -60,10 +65,7 @@ Labeled build:
 
 ```sh
 .venv/bin/python pipeline/fieldnotes.py build \
-  --input ".fieldnotes/raw/$SNAP-codex.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-claude.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-cursor.jsonl" \
-  --input ".fieldnotes/raw/$SNAP-custom.jsonl" \
+  "${INPUTS[@]}" \
   --private .fieldnotes \
   --timezone America/New_York \
   --pii-model fastino/gliner2-privacy-filter-PII-multi \
@@ -71,7 +73,7 @@ Labeled build:
   --jev
 ```
 
-For aggregate telemetry only, drop `--include-prompts`. Omit any `--input` line for a source you did not collect. `--pii-model` is mandatory with `--include-prompts` or `--jev`.
+For aggregate telemetry only, drop `--include-prompts`. Only write snapshot files for sources you actually collected; the loop passes every `.jsonl` in the snapshot directory, including older runs. `--pii-model` is mandatory with `--include-prompts` or `--jev`.
 
 ## 4. Deduplication
 
