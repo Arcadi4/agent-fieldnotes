@@ -63,13 +63,14 @@ def run(paths, out, coverage_path):
                         dropped['duplicate'] += 1
                         continue
                     if kind == 'response':
-                        with_tokens = all(isinstance(row.get(k), int) for k in ('input_tokens', 'output_tokens'))
+                        available = {key for key in ('input_tokens', 'output_tokens')
+                                     if isinstance(row.get(key), int)}
                         state = responses.get(primary)
                         if state is None:
-                            responses[primary] = [stamp, with_tokens, row['conversation']]
+                            responses[primary] = [stamp, available, row['conversation']]
                         else:
                             state[0] = max(state[0], stamp)
-                            state[1] = state[1] or with_tokens
+                            state[1].update(available)
                     else:
                         seen.add(primary)
                         cell = coverage[row['app']][stamp.strftime('%Y-%m')]
@@ -78,11 +79,11 @@ def run(paths, out, coverage_path):
                     seen.add(secondary)
                     stream.write(json.dumps(row, separators=(',', ':')) + '\n')
                     kept += 1
-    for (app, _, _), (stamp, with_tokens, conversation) in responses.items():
+    for (app, _, _), (stamp, available, conversation) in responses.items():
         cell = coverage[app][stamp.strftime('%Y-%m')]
         cell['responses'] += 1
         cell['threads'].add(conversation)
-        if with_tokens:
+        if len(available) == 2:
             cell['with_tokens'] += 1
     coverage_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     summary = {app: {month: dict(prompts=cell['prompts'], responses=cell['responses'], turns=cell['turns'],

@@ -73,7 +73,9 @@ def model_name():
 class Labeler:
     def __init__(self,path):
         self.key = os.environ.get('TYPESAFE_API_KEY','')
-        self.model = os.environ.get('JEV_MODEL','jev-latest')
+        self.model = model_name()
+        # TypeSafe's own endpoint keeps its legacy model name when JEV_MODEL is unset.
+        self.request_model = os.environ.get('JEV_MODEL') or 'jev-latest'
         self.db = sqlite3.connect(path)
         self.db.execute('create table if not exists labels (id text primary key, payload text not null)')
         cache_path = os.environ.get('JEV_LABEL_CACHE')
@@ -89,19 +91,19 @@ class Labeler:
 
     @classmethod
     def cache_key(cls, messages, questions, model=None):
-        return hashlib.sha256(cls.body(messages,questions,model or os.environ.get('JEV_MODEL','jev-latest'))).hexdigest()
+        return hashlib.sha256(cls.body(messages,questions,model or model_name())).hexdigest()
 
     def __call__(self,messages,questions):
         if any(spans(message) for message in messages):
             raise ValueError('Credential gate rejected labeling input')
-        body = self.body(messages,questions,self.model)
-        key = hashlib.sha256(body).hexdigest()
+        key = self.cache_key(messages, questions, self.model)
         row = self.db.execute('select payload from labels where id=?',(key,)).fetchone()
         cached = json.loads(row[0]) if row else self.offline.get(key)
         if cached:
             return cached
         if not self.key:
             raise RuntimeError('No Jev credential and no cached label for this payload; run the judge cache stage first')
+        body = self.body(messages,questions,self.request_model)
         request = Request('https://api.typesafe.ai/v1/systemone',data=body,headers={
             'Authorization':'Bearer '+self.key,'Content-Type':'application/json'})
         for attempt in range(3):

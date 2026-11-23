@@ -154,8 +154,12 @@ def _opencode_like(app, path, default):
                     user_text[mid].append(body)
             elif kind == 'tool':
                 stamp = _iso(start if isinstance(start, int) else created)
-                failed = isinstance(status, str) and any(x in status.lower()
-                                                         for x in ('error', 'fail'))
+                state = status.lower() if isinstance(status, str) else ''
+                failed = None
+                if any(word in state for word in ('error', 'fail')):
+                    failed = True
+                elif state in {'completed', 'complete', 'done', 'success'}:
+                    failed = False
                 row = _event(app, 'tool', pid, message['session'], stamp,
                              failed=failed, measure=tool or 'tool')
                 if row:
@@ -265,9 +269,12 @@ def omp(path):
             if key in seen_responses:
                 continue
             seen_responses.add(key)
-            iso = _iso(stamp)
-            if not iso:
+            start = _iso(stamp)
+            if not start:
                 continue
+            end = None
+            if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+                end = _iso(stamp + duration * 1000)
             bounds = boundaries.get(session, [])
             index = bisect_right(bounds, stamp, key=lambda item: item[0])
             lead = bounds[index - 1][1] if index else None
@@ -282,15 +289,14 @@ def omp(path):
                 counters['cache_read'] = read
             if output is not None:
                 counters['output_tokens'] = output
-            row = _event('omp', 'response', f'{session}:{entry}', session, iso,
+            row = _event('omp', 'response', f'{session}:{entry}', session, end or start,
                          trigger=lead, **counters)
             if row:
                 response_rows.append(row)
-            if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
-                end = _iso(stamp + duration * 1000)
-                if end:
-                    turn_rows.append(_event('omp', 'turn', f'{session}:{entry}', session,
-                                            iso, end=end))
+            if end:
+                turn = _event('omp', 'turn', f'{session}:{entry}', session, start, end=end)
+                if turn:
+                    turn_rows.append(turn)
 
         tool_rows = []
         seen_tools = set()
