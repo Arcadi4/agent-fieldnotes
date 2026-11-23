@@ -7,9 +7,9 @@ from pathlib import Path
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+import jev
 
 ENDPOINT = 'https://openrouter.ai/api/alpha/decisions'
-MODEL = 'typesafe/jev-1.14'
 
 
 def credential(path):
@@ -23,8 +23,8 @@ def credential(path):
     raise RuntimeError('No OpenRouter credential in the private auth export')
 
 
-def label(item, key):
-    body = json.dumps({'model': MODEL,
+def label(item, key, model):
+    body = json.dumps({'model': model,
                        'state': item['state'],
                        'questions': item['questions']}, separators=(',', ':')).encode()
     request = Request(ENDPOINT, data=body, headers={
@@ -57,12 +57,13 @@ def main():
     if options.limit:
         items = items[:options.limit]
     key = credential(options.key_file)
+    model = jev.model_name()
     labels = json.loads(options.out.read_text()) if options.out.exists() else {}
     todo = [(kind, cache_key, value) for kind, cache_key, value in items if cache_key not in labels]
     failed = {}
     started = time.time()
     with ThreadPoolExecutor(max_workers=options.workers) as pool:
-        futures = {pool.submit(label, value, key): (cache_key, value)
+        futures = {pool.submit(label, value, key, model): (cache_key, value)
                    for _, cache_key, value in todo}
         for done, future in enumerate(as_completed(futures), 1):
             cache_key, value = futures[future]

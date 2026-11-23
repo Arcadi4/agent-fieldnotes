@@ -62,6 +62,14 @@ THREAD = {
 }
 
 
+DIRECT_MODEL = 'typesafe/jev-1.14'
+
+
+def model_name():
+    """Model identity shared by cache-key preparation and direct label requests."""
+    return os.environ.get('JEV_MODEL') or DIRECT_MODEL
+
+
 class Labeler:
     def __init__(self,path):
         self.key = os.environ.get('TYPESAFE_API_KEY','')

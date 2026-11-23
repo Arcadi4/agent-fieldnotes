@@ -33,6 +33,7 @@ def payload(messages, questions):
 
 def prepare(path, model_name, workers=1):
     groups = defaultdict(list)
+    label_model = jev.model_name()
     for row in records(path.open('rb')):
         if row['kind'] == 'prompt' and row.get('text'):
             groups[row['app'], row['conversation']].append(row)
@@ -63,15 +64,15 @@ def prepare(path, model_name, workers=1):
                 continue
             context = [s for s in messages[max(0, i - 2):i + 1] if s]
             if context:
-                pending['prompt'][jev.Labeler.cache_key(context, jev.PROMPT)] = payload(context, jev.PROMPT)
+                pending['prompt'][jev.Labeler.cache_key(context, jev.PROMPT, label_model)] = payload(context, jev.PROMPT)
         retained = [s for s in messages if s]
         if retained:
-            pending['thread'][jev.Labeler.cache_key(retained, jev.THREAD)] = payload(retained, jev.THREAD)
+            pending['thread'][jev.Labeler.cache_key(retained, jev.THREAD, label_model)] = payload(retained, jev.THREAD)
         for month in sorted({timestamp(row['time']).strftime('%Y-%m') for row in group}):
             current = [message for row, message in zip(group, messages)
                        if timestamp(row['time']).strftime('%Y-%m') == month and message]
             if current:
-                pending['thread'][jev.Labeler.cache_key(current, jev.THREAD)] = payload(current, jev.THREAD)
+                pending['thread'][jev.Labeler.cache_key(current, jev.THREAD, label_model)] = payload(current, jev.THREAD)
     return pending, redactions, withheld
 
 

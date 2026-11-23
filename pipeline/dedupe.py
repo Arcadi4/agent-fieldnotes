@@ -11,20 +11,25 @@ from sources import cleaned_input, timestamp
 
 def signature(row, stamp):
     app, kind, sid = row['app'], row['kind'], row['conversation']
-    second = stamp.strftime('%Y-%m-%dT%H:%M:%S')
+    # Full timestamps and native IDs keep parallel events distinct; only exact replays dedupe.
+    moment = stamp.isoformat()
     if kind == 'prompt':
         digest = hashlib.sha256(row['text'].strip().encode()).hexdigest()
-        return app, kind, sid, second, digest
+        return app, kind, sid, moment, row['id'], digest
     if kind == 'response':
-        return app, kind, sid, second, row.get('input_tokens'), row.get('cache_read'), row.get('output_tokens'), row.get('trigger')
+        return (app, kind, sid, moment, row['id'], row.get('input_tokens'),
+                row.get('cache_read'), row.get('output_tokens'), row.get('trigger'))
     if kind == 'turn':
-        return app, kind, sid, second
-    return app, kind, sid, second, row.get('measure'), row.get('failed')
+        return app, kind, sid, moment, row['id'], row.get('end')
+    return app, kind, sid, moment, row['id'], row.get('measure'), row.get('failed')
 
 
 def run(paths, out, coverage_path):
     dropped = Counter()
     seen = set()
+    # Streaming frames share a response ID but carry cumulative token and trigger updates.
+    # Keep every distinct frame for normalize() to merge; track each response once here.
+    responses = {}
     coverage = defaultdict(lambda: defaultdict(lambda: Counter(prompts=0, responses=0, turns=0,
                                                                 tools=0, threads=set(), with_tokens=0)))
     kept = 0
@@ -38,34 +43,47 @@ def run(paths, out, coverage_path):
                     except ValueError:
                         dropped['invalid_json'] += 1
                         continue
-                    if row.get('kind') not in {'prompt', 'response', 'turn', 'tool'}:
+                    kind = row.get('kind')
+                    if kind not in {'prompt', 'response', 'turn', 'tool'}:
                         dropped['invalid_kind'] += 1
                         continue
                     stamp = timestamp(row.get('time'))
                     if not stamp or not row.get('app') or not row.get('conversation') or not row.get('id'):
                         dropped['invalid_event'] += 1
                         continue
-                    if row['kind'] == 'prompt':
+                    if kind == 'prompt':
                         text = cleaned_input(row['app'], row.get('text', ''))
                         if not text:
                             dropped['automation'] += 1
                             continue
                         row['text'] = text
-                    primary = (row['app'], row['kind'], row['id'])
+                    primary = (row['app'], kind, row['id'])
                     secondary = signature(row, stamp)
-                    if primary in seen or secondary in seen:
+                    if secondary in seen or (kind != 'response' and primary in seen):
                         dropped['duplicate'] += 1
                         continue
-                    seen.add(primary)
+                    if kind == 'response':
+                        with_tokens = all(isinstance(row.get(k), int) for k in ('input_tokens', 'output_tokens'))
+                        state = responses.get(primary)
+                        if state is None:
+                            responses[primary] = [stamp, with_tokens, row['conversation']]
+                        else:
+                            state[0] = max(state[0], stamp)
+                            state[1] = state[1] or with_tokens
+                    else:
+                        seen.add(primary)
+                        cell = coverage[row['app']][stamp.strftime('%Y-%m')]
+                        cell['prompts' if kind == 'prompt' else kind + 's'] += 1
+                        cell['threads'].add(row['conversation'])
                     seen.add(secondary)
                     stream.write(json.dumps(row, separators=(',', ':')) + '\n')
                     kept += 1
-                    cell = coverage[row['app']][stamp.strftime('%Y-%m')]
-                    kind = row['kind']
-                    cell['prompts' if kind == 'prompt' else kind + 's'] += 1
-                    cell['threads'].add(row['conversation'])
-                    if kind == 'response' and all(isinstance(row.get(k), int) for k in ('input_tokens', 'output_tokens')):
-                        cell['with_tokens'] += 1
+    for (app, _, _), (stamp, with_tokens, conversation) in responses.items():
+        cell = coverage[app][stamp.strftime('%Y-%m')]
+        cell['responses'] += 1
+        cell['threads'].add(conversation)
+        if with_tokens:
+            cell['with_tokens'] += 1
     coverage_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     summary = {app: {month: dict(prompts=cell['prompts'], responses=cell['responses'], turns=cell['turns'],
                                  tools=cell['tools'], threads=len(cell['threads']), with_tokens=cell['with_tokens'])

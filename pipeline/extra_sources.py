@@ -198,17 +198,17 @@ def _opencode_like(app, path, default):
         for mid, message in messages.items():
             if message['role'] != 'assistant':
                 continue
-            stamp = _iso(message['created'])
-            if not stamp:
+            start = _iso(message['created'])
+            end = _iso(message['completed'])
+            if not start or not end:
                 continue
-            response = _event(app, 'response', mid, message['session'], stamp,
+            response = _event(app, 'response', mid, message['session'], end,
                               trigger=trigger(mid), **_response_counters(message['tokens']))
             if response:
                 response_rows.append(response)
-            if message['completed'] is not None:
-                end = _iso(message['completed'])
-                if end:
-                    turn_rows.append(_event(app, 'turn', mid, message['session'], stamp, end=end))
+            turn = _event(app, 'turn', mid, message['session'], start, end=end)
+            if turn:
+                turn_rows.append(turn)
 
     yield from prompt_rows
     yield from response_rows
@@ -231,8 +231,7 @@ def omp(path):
     cutoff = _now_ms()
     with _connect(path, 'stats.db') as db:
         db.execute('pragma query_only=1')
-        prompts = defaultdict(list)
-        prompt_times = defaultdict(list)
+        boundaries = defaultdict(list)
         prompt_rows = []
         seen_prompts = set()
         for entry, session, stamp, prose in db.execute(
@@ -242,15 +241,18 @@ def omp(path):
             if key in seen_prompts:
                 continue
             seen_prompts.add(key)
-            cleaned = human_text('omp', prose)
             iso = _iso(stamp)
-            if not cleaned or not iso:
+            if not iso:
+                continue
+            cleaned = human_text('omp', prose)
+            if not cleaned:
+                # Automation still ends the preceding human prompt's attribution window.
+                boundaries[session].append((stamp, None))
                 continue
             row = _event('omp', 'prompt', f'{session}:{entry}', session, iso, text=cleaned)
             if row:
                 prompt_rows.append(row)
-                prompts[session].append((stamp, row['id']))
-                prompt_times[session].append(stamp)
+                boundaries[session].append((stamp, row['id']))
 
         response_rows = []
         turn_rows = []
@@ -266,9 +268,9 @@ def omp(path):
             iso = _iso(stamp)
             if not iso:
                 continue
-            available = prompts.get(session, [])
-            index = bisect_right(prompt_times.get(session, []), stamp)
-            lead = available[index - 1][1] if index else None
+            bounds = boundaries.get(session, [])
+            index = bisect_right(bounds, stamp, key=lambda item: item[0])
+            lead = bounds[index - 1][1] if index else None
             raw = _token_count(input_tokens)
             read = _token_count(cache_read)
             written = _token_count(cache_write)
