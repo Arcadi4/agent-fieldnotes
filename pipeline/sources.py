@@ -17,7 +17,7 @@ def timestamp(value):
         if str(value).isdigit():
             value = int(value)
             return datetime.fromtimestamp(value / 1000 if value > 10**11 else value, timezone.utc)
-        result = datetime.fromisoformat(value)
+        result = datetime.fromisoformat(value.replace('Z','+00:00'))
         return result.astimezone(timezone.utc) if result.tzinfo else None
     except (TypeError, ValueError, OverflowError, OSError):
         return None

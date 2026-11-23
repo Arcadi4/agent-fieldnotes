@@ -13,7 +13,7 @@ import sqlite3
 
 from codex_log_lines import rollout_lines
 from prompt_origin import human_prompt
-from sources import records
+from sources import records, timestamp
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--input',type=Path,required=True)
@@ -30,7 +30,9 @@ with options.input.open('rb') as stream:
     for row in records(stream):
         if row['kind']!='prompt' or row['app']!='claude':
             continue
-        stamp = datetime.fromisoformat(row['time'])
+        stamp = timestamp(row['time'])
+        if stamp is None:
+            continue
         key = hashlib.sha256(('claude'+row['conversation']).encode()).hexdigest()[:16]
         index[key].append({'timestamp':row['time']})
         prompts[key,stamp.timestamp()] = row['id']
@@ -74,7 +76,7 @@ def epoch(value):
     try:
         if str(value).isdigit():
             return int(value)/1000
-        t = datetime.fromisoformat(value)
+        t = datetime.fromisoformat(value.replace('Z','+00:00'))
         return t.replace(tzinfo=timezone.utc).timestamp() if t.tzinfo is None else t.timestamp()
     except (TypeError, ValueError):
         return None
