@@ -1,0 +1,12 @@
+/dist/
+/.fieldnotes/
+/.venv/
+__pycache__/
+*.pyc
+.env*
+*.jsonl
+*.jsonl.zst
+*.sqlite*
+*.vscdb*
+*.db
+.DS_Store
