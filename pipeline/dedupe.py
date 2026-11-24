@@ -28,7 +28,7 @@ def run(paths, out, coverage_path):
     dropped = Counter()
     seen = set()
     # Streaming frames share a response ID but carry cumulative token and trigger updates.
-    # Keep every distinct frame for normalize() to merge; track each response once here.
+    # Keep distinct frames and turn updates for normalize() to merge.
     responses = {}
     coverage = defaultdict(lambda: defaultdict(lambda: Counter(prompts=0, responses=0, turns=0,
                                                                 tools=0, threads=set(), with_tokens=0)))
@@ -59,7 +59,7 @@ def run(paths, out, coverage_path):
                         row['text'] = text
                     primary = (row['app'], kind, row['id'])
                     secondary = signature(row, stamp)
-                    if secondary in seen or (kind != 'response' and primary in seen):
+                    if secondary in seen or (kind not in {'response', 'turn'} and primary in seen):
                         dropped['duplicate'] += 1
                         continue
                     if kind == 'response':
@@ -71,7 +71,7 @@ def run(paths, out, coverage_path):
                         else:
                             state[0] = max(state[0], stamp)
                             state[1].update(available)
-                    else:
+                    elif primary not in seen:
                         seen.add(primary)
                         cell = coverage[row['app']][stamp.strftime('%Y-%m')]
                         cell['prompts' if kind == 'prompt' else kind + 's'] += 1

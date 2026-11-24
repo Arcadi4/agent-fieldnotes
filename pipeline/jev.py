@@ -70,11 +70,28 @@ def model_name():
     return os.environ.get('JEV_MODEL') or DIRECT_MODEL
 
 
+def check_credentials(messages):
+    if any(spans(message) for message in messages):
+        raise ValueError('Credential gate rejected labeling input')
+
+
+def validate_choices(choices, questions):
+    if not isinstance(choices, dict) or any(
+        choices.get(name) not in rubric['criteria'] for name, rubric in questions.items()
+    ):
+        raise ValueError('Unexpected Jev label')
+    return {name: choices[name] for name in questions}
+
+
+def read_choices(result, questions):
+    answers = result.get('answers') or {}
+    choices = {name:answer.get('choice') for name,answer in answers.items() if name in questions}
+    return validate_choices(choices, questions)
+
+
 class Labeler:
     def __init__(self,path):
         self.key = os.environ.get('TYPESAFE_API_KEY','')
-        self.model = model_name()
-        # TypeSafe's own endpoint keeps its legacy model name when JEV_MODEL is unset.
         self.request_model = os.environ.get('JEV_MODEL') or 'jev-latest'
         self.db = sqlite3.connect(path)
         self.db.execute('create table if not exists labels (id text primary key, payload text not null)')
@@ -94,13 +111,14 @@ class Labeler:
         return hashlib.sha256(cls.body(messages,questions,model or model_name())).hexdigest()
 
     def __call__(self,messages,questions):
-        if any(spans(message) for message in messages):
-            raise ValueError('Credential gate rejected labeling input')
-        key = self.cache_key(messages, questions, self.model)
+        check_credentials(messages)
+        offline_key = self.cache_key(messages, questions)
+        if offline_key in self.offline:
+            return validate_choices(self.offline[offline_key], questions)
+        key = self.cache_key(messages, questions, self.request_model)
         row = self.db.execute('select payload from labels where id=?',(key,)).fetchone()
-        cached = json.loads(row[0]) if row else self.offline.get(key)
-        if cached:
-            return cached
+        if row:
+            return validate_choices(json.loads(row[0]), questions)
         if not self.key:
             raise RuntimeError('No Jev credential and no cached label for this payload; run the judge cache stage first')
         body = self.body(messages,questions,self.request_model)
@@ -115,10 +133,7 @@ class Labeler:
                 if attempt==2 or isinstance(error,HTTPError) and error.code not in {429,500,502,503,504}:
                     raise RuntimeError('Jev labeling request failed') from None
                 time.sleep(2**attempt)
-        answers = result.get('answers') or {}
-        choices = {name:answer.get('choice') for name,answer in answers.items() if name in questions}
-        if any(choices.get(name) not in rubric['criteria'] for name,rubric in questions.items()):
-            raise ValueError('Unexpected Jev label')
+        choices = read_choices(result, questions)
         self.db.execute('insert into labels values(?,?)',(key,json.dumps(choices)))
         self.db.commit()
         return choices
