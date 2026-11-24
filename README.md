@@ -2,7 +2,7 @@
 
 A static dashboard for coding-agent activity and conversation patterns. This source-only release includes the dashboard frontend and a portable local pipeline.
 
-[Copy the recreation prompt](RECREATE.md)
+[Copy the recreation prompt](RECREATE.md) · [Additional sources and OpenRouter labeling](EXTRA_SOURCES.md)
 
 ## Run the synthetic demo
 
@@ -29,8 +29,6 @@ python3 pipeline/fieldnotes.py build --input .fieldnotes/events.jsonl --timezone
 
 The default build includes aggregate activity. Use the generated site's Usage and Method views to check what the sources support. Cursor's adapter currently reports prompt activity only. Codex and Claude adapters report observed response IDs when available. Claude's native importer uses root conversations. Add new agents through the [event format](FORMAT.md) and supply multiple `--input` files to combine them.
 
-For OpenCode, Mimocode, or Oh My Pi, run `python3 pipeline/collect_extra.py --help`. Pass each private export to the build with an additional `--input`.
-
 To add Codex reviews launched by Claude, run the optional linkage stage and pass its private result as a second input.
 
 ```sh
@@ -54,20 +52,6 @@ python3 -m venv .venv
 ```
 
 Set `TYPESAFE_API_KEY` in your local environment before enabling `--jev`. Optionally set `JEV_MODEL`. Jev receives scrubbed prompt text and structured questions. Labeling results are cached locally by payload, model and rubric. Review the labels and source coverage before interpreting a trend.
-
-For OpenRouter Decisions labeling, use the same model configuration throughout. Keep the pending payloads, auth export, and cache under private local state.
-
-```sh
-PII_MODEL=fastino/gliner2-privacy-filter-PII-multi
-.venv/bin/python pipeline/prepare_labels.py --input .fieldnotes/events.jsonl \
-  --out .fieldnotes/pending.json --pii-model "$PII_MODEL"
-.venv/bin/python pipeline/label_direct.py --pending .fieldnotes/pending.json \
-  --out .fieldnotes/openrouter-labels.json --key-file "$OPENROUTER_AUTH_EXPORT" \
-  --pii-model "$PII_MODEL"
-JEV_LABEL_CACHE=.fieldnotes/openrouter-labels.json \
-  .venv/bin/python pipeline/fieldnotes.py build --input .fieldnotes/events.jsonl \
-  --pii-model "$PII_MODEL" --jev
-```
 
 ## Publish a reviewed build
 
