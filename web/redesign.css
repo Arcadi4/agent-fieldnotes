@@ -231,10 +231,10 @@ details>summary:hover,a:hover {color:var(--accent)}
 .schedule-scroll {overflow-x:auto;padding-block:2px}
 .schedule-grid {
   display:grid;
-  grid-template-columns:2.5rem repeat(24,minmax(0,1fr));
+  grid-template-columns:2.5rem repeat(4,minmax(0,1fr));
   align-items:center;
   gap:4px;
-  min-width:495px;
+  min-width:330px;
 }
 .schedule-hour,.schedule-day {font-size:.75rem;color:var(--muted)}
 .schedule-hour {text-align:center;white-space:nowrap}

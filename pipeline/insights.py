@@ -118,12 +118,14 @@ def insight_cards(prompts, labels, conversations, tokens, tool_events, turns, ti
          'Share of logged active time with two or more distinct conversations running.')
 
     weekdays = ('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+    intervals = ('12–6 AM', '6 AM–noon', 'Noon–6 PM', '6 PM–midnight')
     clock = Counter()
     for p in prompts:
         local = p['stamp'].astimezone(ZoneInfo(timezone))
-        clock[local.weekday(),local.hour] += 1
+        clock[local.weekday(),local.hour//6] += 1
     card('prompt-clock-clear','When I send prompts',
-         [{'Day':day,'Hour':f'{h:02}:00','Prompt records':clock[i,h]} for i,day in enumerate(weekdays) for h in range(24)],
-         'Prompt records by weekday and hour in '+timezone+'.')
+         [{'Day':day,'Interval':interval,'Prompt records':clock[i,block]}
+          for i,day in enumerate(weekdays) for block,interval in enumerate(intervals)],
+         'Prompt records by weekday and six-hour interval in '+timezone+'.')
     out[-1]['timezone'] = timezone
     return out

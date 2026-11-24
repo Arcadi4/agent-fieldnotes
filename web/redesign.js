@@ -126,16 +126,16 @@ function renderGraph(target, labels, series, suffix='', waterfall=false) {
 
 function renderPromptSchedule(target, rows, timezone) {
   const days = [...new Set(rows.map(row => row.Day))];
+  const intervals = [...new Set(rows.map(row => row.Interval))];
   const peak = Math.max(1,...rows.map(row => row['Prompt records']));
   const shades = ['#edf2ef','#cbe9d3','#93d5a7','#50ad78','#20724a'];
   const wrap = node('div',null,'schedule-scroll');
   const grid = node('div',null,'schedule-grid');
   grid.setAttribute('role','img');
-  grid.setAttribute('aria-label','Prompt activity by weekday and hour in '+timezone);
+  grid.setAttribute('aria-label','Prompt activity by weekday and six-hour interval in '+timezone);
   grid.append(node('span',''));
-  for (let hour=0;hour<24;hour++) {
-    const label = hour%3===0 ? (hour%12||12)+(hour<12?'a':'p') : '';
-    grid.append(node('span',label,'schedule-hour'));
+  for (const interval of intervals) {
+    grid.append(node('span',interval,'schedule-hour'));
   }
   for (const day of days) {
     grid.append(node('span',day.slice(0,3),'schedule-day'));
@@ -144,7 +144,7 @@ function renderPromptSchedule(target, rows, timezone) {
       const cell = node('span',null,'schedule-cell');
       const shade = count ? Math.ceil(4 * count / peak) : 0;
       cell.style.background = shades[shade];
-      cell.title = `${day}, ${row.Hour} ${timezone} · ${formatValue(count,0)} prompt records`;
+      cell.title = `${day}, ${row.Interval} ${timezone} · ${formatValue(count,0)} prompt records`;
       grid.append(cell);
     }
   }
