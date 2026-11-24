@@ -71,6 +71,6 @@ JEV_LABEL_CACHE=.fieldnotes/openrouter-labels.json \
 
 ## Publish a reviewed build
 
-The generated `dist/` is the static site. Host it at the root of a domain or use ChatGPT Sites with your own hosting project. The source release contains no hosting identity. The build exports telemetry and derived labels. Keep prompt text, raw inputs, and private state outside the site and out of Git.
+The generated `dist/` is the static site. Host it at the root of a domain or use ChatGPT Sites with your own hosting project. The source release contains no hosting identity. Publish only telemetry and derived labels. Keep prompt text, raw inputs, and private state outside the site and out of Git.
 
 The frontend shows views supported by the supplied data. Missing telemetry remains unavailable. Iteration counts describe distinct recorded model responses. Elapsed time uses observed timestamps and can include waiting.
