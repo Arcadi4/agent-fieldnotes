@@ -5,7 +5,7 @@ Use these instructions after the first collection. Keep raw inputs, private stat
 ## Layout
 
 - `.fieldnotes/raw/<snapshot>-<source>.jsonl` — private raw snapshots, one per source and run.
-- `.fieldnotes/public-id-seed` — private HMAC seed for public archive IDs.
+- `.fieldnotes/public-id-seed` — private HMAC seed for stable derived conversation IDs.
 - `.fieldnotes/labels.sqlite` — cached Jev labels.
 - `dist/` — generated site. Never hand-edit it.
 
@@ -50,15 +50,13 @@ for file in .fieldnotes/raw/*.jsonl; do
 done
 ```
 
-Review build without Jev (redacts and exports excerpts for inspection):
+Aggregate build without Jev:
 
 ```sh
 .venv/bin/python pipeline/fieldnotes.py build \
   "${INPUTS[@]}" \
   --private .fieldnotes \
-  --timezone America/New_York \
-  --pii-model fastino/gliner2-privacy-filter-PII-multi \
-  --include-prompts
+  --timezone America/New_York
 ```
 
 Labeled build:
@@ -69,38 +67,37 @@ Labeled build:
   --private .fieldnotes \
   --timezone America/New_York \
   --pii-model fastino/gliner2-privacy-filter-PII-multi \
-  --include-prompts \
   --jev
 ```
 
-For aggregate telemetry only, drop `--include-prompts`. Only write snapshot files for sources you actually collected; the loop passes every `.jsonl` in the snapshot directory, including older runs. `--pii-model` is mandatory with `--include-prompts` or `--jev`.
+The loop includes all saved source snapshots. Keep prompt text in private inputs and require a local PII model for Jev labeling.
 
 ## 4. Deduplication
 
-The build normalizes records by `(app, kind, id)`, merges streaming response frames for the same conversation, and aborts if prompt IDs are not globally unique. Do not pre-trim or merge snapshots by hand; pass the full set every time.
+The build normalizes records by `(app, kind, id)`, merges streaming response frames, fills in recorded turn completions for the same conversation, and rejects prompt IDs that still collide after normalization. Do not pre-trim or merge snapshots by hand; pass the full set every time.
 
 A copied conversation keeps its native IDs only when it is truly the same history. If the copy has new session or message IDs, it is a separate thread and should remain separate.
 
 ## 5. Preserve private state
 
-- Never delete, regenerate, or commit `.fieldnotes/public-id-seed`. Public prompt and conversation IDs are HMACs of the seed; losing it breaks every published archive URL. Back it up outside the repository.
+- Never delete, regenerate, or commit `.fieldnotes/public-id-seed`. The seed keeps derived conversation IDs stable across builds. Back it up outside the repository.
 - Keep `.fieldnotes/labels.sqlite` between runs. Jev caches labels by redacted payload, model, and rubric, so unchanged inputs avoid new API calls. Changed text, `JEV_MODEL`, or rubric questions produce cache misses and new labels.
 - Keep `TYPESAFE_API_KEY` in the environment only.
 
 ## 6. Rescrub before new labeling
 
-Every build re-redacts prompt text locally; never label raw text and never reuse cleaned text from an earlier snapshot. Run the review build in step 3 first, then the `--jev` build. The labeler refuses input that still contains credential patterns. Check `withheld_texts` in `dist/metrics.json` and inspect `dist/prompts-*.json` for missed secrets or private context before enabling labeling.
+The labeled build redacts prompt text locally and withholds text that still contains credential patterns. Review the `withheld_texts` count in `dist/metrics.json`. Keep any redaction review files in private state.
 
-## 7. Review coverage and excerpts
+## 7. Review coverage and publication files
 
 Before publishing, compare against the previous build:
 
-- Snapshot date, app list, total prompts, total threads, and `cleaned_texts`/`withheld_texts`.
-- New or changed excerpts in `dist/prompts-*.json`; review each one manually. Redaction can miss secrets.
+- Snapshot date, app list, total prompts, total threads, and withheld text count for labeled builds.
+- Confirm that any `prompts-*.json` files from older builds are empty. Publish only telemetry and derived labels.
 - Label distribution and monthly coverage; sparse months and unsupported telemetry must stay unavailable.
 - The generated Usage and Method views, which state what each source supports.
 
-Do not publish an unreviewed excerpt. Cursor currently reports prompt activity only.
+Cursor currently reports prompt activity only.
 
 ## 8. Rebuild dist atomically
 
