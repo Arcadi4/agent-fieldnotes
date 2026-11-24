@@ -1,6 +1,6 @@
 # Agent Fieldnotes
 
-A static dashboard for coding-agent activity across the harnesses you use: conversation patterns, work volume, token usage, and a searchable prompt archive. This source-only release contains the dashboard frontend and a portable local pipeline. It includes no personal prompt archives or generated datasets.
+A static dashboard for coding-agent activity across the harnesses you use: conversation patterns, work volume, and token usage. This source-only release contains the dashboard frontend and a portable local pipeline.
 
 [Copy the recreation prompt](RECREATE.md)
 
@@ -31,7 +31,7 @@ python3 pipeline/fieldnotes.py collect \
   --out .fieldnotes/events.jsonl
 ```
 
-Point each flag at the store on your machine; the bundled Cursor adapter reads its local state database. Install `zstd` if a bundled adapter reads compressed rollouts. `FORMAT.md` is the extension boundary. A source without a bundled adapter needs only a read-only adapter that emits `FORMAT.md` JSONL; pass that output as additional `--input` files. The build normalizes all inputs by stable IDs: it keeps one row per `app`, `kind`, and `id`, merges repeated streaming frames for a response ID, and rejects prompt IDs duplicated across inputs. Namespace prompt IDs by source. The build cannot recognize the same history exported twice under different IDs, so deduplicate copied history yourself before building and record which sources and date ranges each export covers.
+Point each flag at the store on your machine; the bundled Cursor adapter reads its local state database. Install `zstd` if a bundled adapter reads compressed rollouts. `FORMAT.md` is the extension boundary. A source without a bundled adapter needs only a read-only adapter that emits `FORMAT.md` JSONL; pass that output as additional `--input` files. The build normalizes all inputs by stable IDs: it keeps one row per `app`, `kind`, and `id`, merges repeated streaming frames for a response ID, and rejects prompt IDs that still collide after normalization. Namespace prompt IDs by source. The build cannot recognize the same history exported twice under different IDs, so deduplicate copied history yourself before building and record which sources and date ranges each export covers.
 
 Collection refuses to overwrite an existing output path. The build writes to a fresh output directory or replaces one it generated, and keeps private state in `.fieldnotes` by default; pass `--private` to use another path.
 
@@ -61,7 +61,7 @@ By default the linker checks session IDs in launch results. It can also inspect 
 
 ## Redaction and Jev
 
-Real-text labeling and archive export require local redaction: pass `--pii-model` to the build. The redaction stage runs a credential gate and withholds prompts that still contain credential-like material; the Jev labeler also refuses such payloads.
+Prompt labeling requires local redaction: pass `--pii-model` to the build. The redaction stage runs a credential gate and withholds prompts that still contain credential-like material; the Jev labeler also refuses such payloads.
 
 Install `gliner2` in a virtual environment to enable the local PII pass. Download the model in an environment where your raw transcripts stay local.
 
@@ -84,12 +84,10 @@ The credential is read from the environment only. Keep it, the private state dir
 
 Optionally set `JEV_MODEL`. Jev receives scrubbed prompt text and structured questions. Labeling results are cached locally by payload, model, and rubric in the private state directory, so reruns do not resend matching payloads. Keep the same labeler model setting across reruns so cached answers remain reusable, and review the labels and your source inventory before interpreting a trend.
 
-Add `--include-prompts` with the same `--pii-model` setting to build the browsable text archive locally. Redaction happens before any prompt text is written. Review every excerpt you intend to publish. Automated redaction can miss secrets and private context. Keep raw inputs, private state, generated builds, and API credentials out of this repository. Keep the private seed in the state directory when refreshing so public archive IDs remain stable; use `--private` to move that state to a path you control.
-
 ## Publish a reviewed build
 
-The generated `dist/` is the static site. Host it at the root of a domain on your own static host, or use a hosting project you control. The source release contains no hosting identity. Review the exact generated files before publishing telemetry or excerpts, especially on a public site.
+The generated `dist/` is the static site. Host it at the root of a domain on your own static host, or use a hosting project you control. The source release contains no hosting identity. Before publishing, verify that the generated files contain only telemetry and derived labels.
 
-The Method view reports the snapshot and retained prompt totals from the build itself. It cannot show telemetry or sources that were never supplied, so keep your source-coverage inventory with the private state rather than inventing a public summary. Include individually reviewed scrubbed prompts only with explicit approval.
+The Method view reports the snapshot and retained prompt totals from the build itself. It cannot show telemetry or sources that were never supplied, so keep your source-coverage inventory with the private state rather than inventing a public summary. Keep prompt text local.
 
 The frontend shows views supported by the supplied data. Missing telemetry remains unavailable. Iteration counts describe distinct recorded model responses. Elapsed time uses observed timestamps and can include waiting.

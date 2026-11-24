@@ -33,6 +33,6 @@ For turns, use source timestamps and set `end` when the source records completio
 
 Leave unsupported optional fields absent. Missing token counters, cache reads, tool outcomes, or linked responses remain unavailable; do not estimate them or substitute zero. Every view shows only the telemetry the supplied events support.
 
-Use identifiers, timestamps, and raw content in the private input. Generated text excerpts use coarse dates and keyed public IDs, and real text should pass local redaction and review before publication.
+Use identifiers, timestamps, and raw content in the private input. The static build contains telemetry and derived labels. Conversation IDs are keyed and prompt text stays private.
 
 Avoid the reserved slugs `all`, `constructor`, and `prototype`; `all` is a combined-series filter in the dashboard. Labels are produced by the pipeline from redacted text during labeling, so do not include label fields in a source export.

@@ -11,7 +11,7 @@ Deduplicate copied history under differing IDs before building, and let the buil
 
 Build the aggregate dashboard locally first. Run local PII redaction and a credential check before sending only scrubbed text to my Jev/TypeSafe-compatible labeling access. Use my environment-provided TypeSafe credential, and keep the credential and the local label cache private. Label prompt purpose, intent, feedback, and steering. Reuse the local label cache keyed by payload, model, and rubric, so reruns do not resend labeled payloads. Put model development and fine-tuning in their own use-case bucket.
 
-Keep the compact sidebar layout, Usage, Patterns, Insights, Prompt Archive, and Method views. Use my local timezone for the weekly activity grid. Keep the iteration-weighted work-per-prompt chart and the thread follow-through chart where the source supports them. Combine comparable agents by default and show app-specific series when definitions differ.
+Keep the compact sidebar layout, Usage, Patterns, Insights, and Method views. Use my local timezone for the weekly activity grid. Keep the iteration-weighted work-per-prompt chart and the thread follow-through chart where the source supports them. Combine comparable agents by default and show app-specific series when definitions differ.
 
-Show me the populated local preview and source coverage. Keep raw logs, keys, intermediate results, and generated exports out of Git. Include individually reviewed scrubbed prompts only if I approve their publication. Publish my reviewed build to a static host I choose when I ask.
+Show me the populated local preview and source coverage. Keep raw logs, keys, intermediate results, and generated exports out of Git. Publish only telemetry and derived labels. Keep all prompt text local. Publish my reviewed build to a static host I choose when I ask.
 ```
