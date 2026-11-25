@@ -160,6 +160,8 @@ def _opencode_like(app, path, default):
                     failed = True
                 elif state in {'completed', 'complete', 'done', 'success'}:
                     failed = False
+                if failed is None:
+                    continue
                 row = _event(app, 'tool', pid, message['session'], stamp,
                              failed=failed, measure=tool or 'tool')
                 if row:

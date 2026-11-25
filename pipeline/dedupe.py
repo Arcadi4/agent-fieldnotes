@@ -30,6 +30,8 @@ def run(paths, out, coverage_path):
     # Streaming frames share a response ID but carry cumulative token and trigger updates.
     # Keep distinct frames and turn updates for normalize() to merge.
     responses = {}
+    # A terminal tool snapshot may supersede an earlier provisional row with the same ID.
+    terminal_tools = set()
     coverage = defaultdict(lambda: defaultdict(lambda: Counter(prompts=0, responses=0, turns=0,
                                                                 tools=0, threads=set(), with_tokens=0)))
     kept = 0
@@ -59,9 +61,16 @@ def run(paths, out, coverage_path):
                         row['text'] = text
                     primary = (row['app'], kind, row['id'])
                     secondary = signature(row, stamp)
-                    if secondary in seen or (kind not in {'response', 'turn'} and primary in seen):
+                    if secondary in seen:
                         dropped['duplicate'] += 1
                         continue
+                    terminal_tool = kind == 'tool' and type(row.get('failed')) is bool
+                    if primary in seen and kind not in {'response', 'turn'}:
+                        if not terminal_tool or primary in terminal_tools:
+                            dropped['duplicate'] += 1
+                            continue
+                    if terminal_tool:
+                        terminal_tools.add(primary)
                     if kind == 'response':
                         available = {key for key in ('input_tokens', 'output_tokens')
                                      if isinstance(row.get(key), int)}

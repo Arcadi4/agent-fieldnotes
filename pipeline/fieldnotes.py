@@ -92,6 +92,13 @@ def normalize(rows):
             if not old.get('_conflicting_trigger'):
                 old['trigger'] = old.get('trigger') or row.get('trigger')
             continue
+        if old and old['conversation']==row['conversation'] and row['kind']=='tool':
+            old_terminal = type(old.get('failed')) is bool
+            new_terminal = type(row.get('failed')) is bool
+            if old_terminal!=new_terminal:
+                if new_terminal:
+                    unique[key] = row
+                continue
         if old is None or stamp<old['stamp']:
             unique[key] = row
     return sorted(unique.values(),key=lambda row:row['stamp'])
