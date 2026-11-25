@@ -99,6 +99,13 @@ def normalize(rows):
                 if new_terminal:
                     unique[key] = row
                 continue
+        if old and old['conversation']==row['conversation'] and row['kind']=='turn':
+            # Re-exports of the same cycle can extend its recorded completion.
+            if stamp<old['stamp']:
+                old['stamp'],old['time'] = stamp,row['time']
+            if row.get('end_stamp') and (not old.get('end_stamp') or row['end_stamp']>old['end_stamp']):
+                old['end'],old['end_stamp'] = row.get('end'),row['end_stamp']
+            continue
         if old is None or stamp<old['stamp']:
             unique[key] = row
     return sorted(unique.values(),key=lambda row:row['stamp'])
