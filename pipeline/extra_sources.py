@@ -192,15 +192,14 @@ def _opencode_like(app, path, default):
                 ancestor = messages.get(parent)
                 if not ancestor:
                     return None
-                if ancestor['role'] == 'user':
-                    linked = prompt_ids.get(parent)
-                    if linked:
-                        return linked
+                if ancestor['role'] == 'user' and parent in prompt_ids:
+                    return parent
                 parent = ancestor['parent']
             return None
 
         response_rows = []
         turn_rows = []
+        cycles = {}
         for mid, message in messages.items():
             if message['role'] != 'assistant':
                 continue
@@ -208,11 +207,18 @@ def _opencode_like(app, path, default):
             end = _iso(message['completed'])
             if not start or not end:
                 continue
+            linked = trigger(mid)
             response = _event(app, 'response', mid, message['session'], end,
-                              trigger=trigger(mid), **_response_counters(message['tokens']))
+                              trigger=prompt_ids.get(linked), **_response_counters(message['tokens']))
             if response:
                 response_rows.append(response)
-            turn = _event(app, 'turn', mid, message['session'], start, end=end)
+            if linked and isinstance(message['completed'], int):
+                cycle = cycles.get(linked)
+                cycles[linked] = max(cycle, message['completed']) if cycle else message['completed']
+
+        for mid, end_ms in cycles.items():
+            turn = _event(app, 'turn', f'{mid}:cycle', messages[mid]['session'],
+                          _iso(messages[mid]['created']), end=_iso(end_ms))
             if turn:
                 turn_rows.append(turn)
 
@@ -239,6 +245,7 @@ def omp(path):
         db.execute('pragma query_only=1')
         boundaries = defaultdict(list)
         prompt_rows = []
+        prompt_ids = {}
         seen_prompts = set()
         for entry, session, stamp, prose in db.execute(
                 "select entry_id,session_file,timestamp,prose from user_messages "
@@ -258,10 +265,12 @@ def omp(path):
             row = _event('omp', 'prompt', f'{session}:{entry}', session, iso, text=cleaned)
             if row:
                 prompt_rows.append(row)
-                boundaries[session].append((stamp, row['id']))
+                prompt_ids[(session, entry)] = row['id']
+                boundaries[session].append((stamp, (session, entry)))
 
         response_rows = []
         turn_rows = []
+        cycles = {}
         seen_responses = set()
         for entry, session, stamp, duration, input_tokens, output_tokens, cache_read, cache_write in db.execute(
                 "select entry_id,session_file,timestamp,duration,input_tokens,output_tokens,"
@@ -275,11 +284,14 @@ def omp(path):
             if not start:
                 continue
             end = None
+            end_ms = None
             if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
-                end = _iso(stamp + duration * 1000)
+                end_ms = stamp + duration * 1000
+                end = _iso(end_ms)
             bounds = boundaries.get(session, [])
             index = bisect_right(bounds, stamp, key=lambda item: item[0])
-            lead = bounds[index - 1][1] if index else None
+            lead = bounds[index - 1] if index else None
+            lead_key = lead[1] if lead else None
             raw = _token_count(input_tokens)
             read = _token_count(cache_read)
             written = _token_count(cache_write)
@@ -292,13 +304,18 @@ def omp(path):
             if output is not None:
                 counters['output_tokens'] = output
             row = _event('omp', 'response', f'{session}:{entry}', session, end or start,
-                         trigger=lead, **counters)
+                         trigger=prompt_ids.get(lead_key), **counters)
             if row:
                 response_rows.append(row)
-            if end:
-                turn = _event('omp', 'turn', f'{session}:{entry}', session, start, end=end)
-                if turn:
-                    turn_rows.append(turn)
+            if end_ms is not None and lead_key:
+                cycle = cycles.get(lead_key)
+                cycles[lead_key] = [lead[0], max(cycle[1], end_ms)] if cycle else [lead[0], end_ms]
+
+        for (session, entry), (start_ms, end_ms) in cycles.items():
+            turn = _event('omp', 'turn', f'{session}:{entry}:cycle', session,
+                          _iso(start_ms), end=_iso(end_ms))
+            if turn:
+                turn_rows.append(turn)
 
         tool_rows = []
         seen_tools = set()
