@@ -53,7 +53,7 @@ done
 Aggregate build without Jev:
 
 ```sh
-.venv/bin/python pipeline/fieldnotes.py build \
+python3 pipeline/fieldnotes.py build \
   "${INPUTS[@]}" \
   --private .fieldnotes \
   --timezone America/New_York
