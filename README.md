@@ -27,7 +27,7 @@ python3 pipeline/fieldnotes.py collect \
 python3 pipeline/fieldnotes.py build --input .fieldnotes/events.jsonl --timezone America/New_York
 ```
 
-The default build includes aggregate activity. Use the generated site's Usage and Method views to check what the sources support. Cursor's adapter currently reports prompt activity only. Codex and Claude adapters report observed response IDs when available. Claude's native importer uses root conversations. Add new agents through the [event format](FORMAT.md) and supply multiple `--input` files to combine them.
+The default build includes aggregate activity. Use the generated site's Usage and Method views to check what the sources support. Cursor's adapter currently reports prompt activity only. Codex and Claude adapters report observed response IDs when available. Claude's native importer uses root conversations. Add new agents through the [event format](FORMAT.md) and supply multiple `--input` files to combine them. Each build writes its own agent-by-month coverage table into the Method view.
 
 To add Codex reviews launched by Claude, run the optional linkage stage and pass its private result as a second input.
 

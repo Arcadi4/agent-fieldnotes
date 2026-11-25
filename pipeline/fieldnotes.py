@@ -104,6 +104,28 @@ def normalize(rows):
     return sorted(unique.values(),key=lambda row:row['stamp'])
 
 
+def coverage_summary(rows):
+    """Aggregate retained events for the public Method coverage table."""
+    cells = defaultdict(lambda: defaultdict(lambda: {'prompts':0,'responses':0,
+                                                    'with_tokens':0,'threads':set()}))
+    for row in rows:
+        if row['kind'] not in {'prompt','response'}:
+            continue
+        cell = cells[row['app']][month(row['stamp'])]
+        if row['kind']=='prompt':
+            cell['prompts'] += 1
+            cell['threads'].add(row['conversation'])
+        else:
+            cell['responses'] += 1
+            start,end = row.get('input_tokens'),row.get('output_tokens')
+            if type(start) is int and type(end) is int and start>=0 and end>=0 and start+end>0:
+                cell['with_tokens'] += 1
+    return {'apps':{app:{m:dict(prompts=cell['prompts'],threads=len(cell['threads']),
+                                 responses=cell['responses'],with_tokens=cell['with_tokens'])
+                         for m,cell in months.items()} for app,months in cells.items()},
+            'unavailable':[]}
+
+
 def synthetic():
     for m in (1,2,3):
         for i in range(8):
@@ -281,6 +303,7 @@ def build(options):
         shutil.copytree(BASE/'web',stage)
         (stage/'.fieldnotes-build').touch()
         write_json(stage/'metrics.json',metrics)
+        write_json(stage/'coverage.json',coverage_summary(rows))
         write_json(stage/'conversation-labels.json',labeled_threads)
         write_json(stage/'qualitative-monthly.json',qualitative)
         write_json(stage/'insights/data.json',cards)
